@@ -5,6 +5,7 @@ if __name__ == '__main__':
     import matplotlib.pyplot as plt
     from scipy import stats
     from sklearn import svm
+    from sklearn.ensemble import RandomForestClassifier     
     from sklearn.model_selection import train_test_split 
     #读取训练集和测试集
     train_path='D:/9课程/网课模式识别/python/train.csv'
@@ -17,7 +18,7 @@ if __name__ == '__main__':
     #train_X.head()
     train_X = traindata.iloc[:,1:6001]
 
-    '''
+    
     #特征提取
     train_X_feature = pd.DataFrame()
     train_X_feature['sum'] = np.sum(train_X, axis = 1)  #在二维数组a[i][j]中，axis=1就是j从0到end,即一行 
@@ -58,11 +59,12 @@ if __name__ == '__main__':
     test_feature['skew'] = stats.skew(testdata,axis=1)  #样本偏度，正态为0，单峰连续分布，若大于零，则意味着右边有更多权重
     test_feature['kurtosis'] = stats.kurtosis(testdata,axis=1) #峰度
     test_feature.head()
+    test_feature_RF = test_feature
 
+    '''
     #画图观察,在模型中没有用
     #PCA降为二维
     from sklearn.decomposition import PCA
-    var=["sum","abs_sum","per5","per95","per99","mean","min","max","std","var","median","skew","kurtosis"]
     pca = PCA(n_components=2)
     pca.fit(train_X_feature[var])
     #将降维数据转换成降维后的数据，当模型训练好后，对于新输入的数据，都可以用transform方法来降维
@@ -87,55 +89,41 @@ if __name__ == '__main__':
         yi=pic_x[pic_x['label']==i][1]
         plt.scatter(Xi, yi, s=20, c=colors[i], label=i)
     '''
-    #Tsfresh
-    train_X_array = train_X.values
-    train_X_reshape = train_X_array.reshape(792*2,3000)
-    train_X_ts = pd.DataFrame(train_X_reshape)
-    ids = np.empty([len(train_X_ts),2])
-    for i in range(1,len(train_X_ts)+1):
-        ids[i-1][0] = i//3+1
-        ids[i-1][1] = i % 3
-    train_X_ts['id'] = ids[:,0]
-    train_X_ts['time'] = ids[:,1]
-    train_X_ts.head()
-    y = traindata['label']
 
-    from tsfresh import extract_features, select_features
-    from tsfresh.utilities.dataframe_functions import impute
-    from tsfresh.feature_extraction.settings import ComprehensiveFCParameters
-    extract_settings = ComprehensiveFCParameters()
-    extracted_features = extract_features(train_X_ts,column_id="id",column_sort="time",default_fc_parameters=extract_settings, impute_function=impute)
-    extracted_features.head()
-    # from tsfresh import select_features
-    # from tsfresh.utilities.dataframe_functions import impute
-    # impute(extraced_features)
-    # filtered_features = select_features(extraced_features, y)
-    # filtered_features.head()
+    var = ["sum","abs_sum","per5","per95","per99","mean","min","max","std","var","median","skew","kurtosis"]
 
     #划分训练集和测试集
     x_train, x_test, y_train, y_test = train_test_split(train_X_feature[var], train_y, random_state=1, train_size=0.8)
     print("Size of training set:{} size of testing set:{}".format(x_train.shape[0],x_test.shape[0]))
 
     #训练SVM模型
-    clf = svm.SVC(C=1, kernel='rbf', gamma=0.01, decision_function_shape='ovr')
+    clf = svm.SVC(C=1, kernel='rbf', gamma=0.001, decision_function_shape='ovr')
     #训练
     clf.fit(x_train, y_train)
 
 
-    from sklearn.metrics import classification_report, confusion_matrix
+    from sklearn.metrics import accuracy_score, confusion_matrix
     #在测试集上的分类结果
     y_hat = clf.predict(x_test)
     print(confusion_matrix(y_test,y_hat))
-    print(classification_report(y_test,y_hat))
-
-
-
+    print(accuracy_score(y_test,y_hat))
     #测试数据
     clf.fit(train_X_feature[var],train_y)
     y_hat2=clf.predict(test_feature[var])
-    print(y_hat2)
     test_feature['label']=y_hat2
     test_feature.to_csv("Result for SVM.csv",index = 0,header=1,columns=['id','label'])
+
+    #RF模型
+    clf_RF = RandomForestClassifier(n_estimators = 50)
+    clf_RF.fit(x_train,y_train)
+    RF_hat = clf_RF.predict(x_test)
+    print(confusion_matrix(y_test,RF_hat))
+    print(accuracy_score(y_test,RF_hat))
+    clf_RF.fit(train_X_feature[var],train_y)
+    RF_hat2 = clf_RF.predict(test_feature_RF[var])
+    test_feature_RF['label'] = RF_hat2
+    test_feature_RF.to_csv("Result_RF.csv",index = 0,header=1,columns=['id','label'])
+    print(RF_hat2)
     #dataframe=pd.DataFrame({'id':test_feature['id'],'label':y_hat2})
     #dataframe.to_csv("Result_SVM.csv",index=False,sep=',')
-    plt.show()
+    #plt.show()
